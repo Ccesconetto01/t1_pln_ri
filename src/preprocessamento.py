@@ -17,15 +17,27 @@ STOP_WORDS_FALLBACK = (
 
 
 def normalizar_texto(texto: str) -> str:
-    """Converte para minúsculas e remove acentos."""
+    """Converte para minúsculas e remove acentos.
 
+    Args:
+        texto: Texto original.
+
+    Returns:
+        Texto em minúsculas, sem os diacríticos (ex.: ``"Crédito"`` -> ``"credito"``).
+    """
     decomposto = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in decomposto if unicodedata.category(c) != "Mn")
 
 
 def _carregar_stop_words() -> frozenset[str]:
-    """Carrega as stopwords em português do nltk, já sem acentos."""
+    """Carrega as stopwords em português do nltk, já sem acentos.
 
+    Se a lista não estiver instalada, tenta baixá-la. Sem internet, usa
+    ``STOP_WORDS_FALLBACK``.
+
+    Returns:
+        Conjunto de stopwords normalizadas com ``normalizar_texto``.
+    """
     try:
         try:
             lista = stopwords.words("portuguese")
@@ -41,7 +53,14 @@ STOP_WORDS = _carregar_stop_words()
 
 
 def tokenizar_e_filtrar(texto: str) -> list[str]:
-    """Normaliza o texto e retorna os tokens sem stopwords."""
+    """Normaliza o texto e retorna os tokens sem stopwords.
 
+    Args:
+        texto: Texto de um documento ou de uma consulta.
+
+    Returns:
+        Tokens em minúsculas e sem acentos, na ordem em que aparecem no texto (com
+        repetições). Stopwords e tokens só com dígitos são descartados.
+    """
     tokens = re.findall(r"\b\w+\b", normalizar_texto(texto))
     return [t for t in tokens if not t.isdigit() and t not in STOP_WORDS]
