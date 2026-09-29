@@ -27,11 +27,30 @@ _A preencher._
 
 ### Demo
 
-_A preencher na etapa 5._
+A demo é interativa e roda no terminal, a partir da raiz do projeto:
+
+```bash
+python demo.py
+```
+
+Na primeira execução ela baixa o dataset para `data/raw/` (é preciso ter internet); depois
+disso funciona offline. Ao iniciar, ela indexa os cinco modelos sobre o corpus completo e mostra
+o tempo de cada indexação. Em seguida:
+
+- escolha um modelo (número ou nome) ou **Todos** (Enter);
+- digite a consulta: a demo mostra o Top-5 de cada modelo com posição, trecho do documento e score;
+- no modelo **Booleano** use `AND`, `OR` e `NOT` em maiúsculas (ex.: `pix AND limite`); sem
+  operadores, todos os termos são exigidos (o mesmo vale para a **Busca Linear**);
+- digite `:modelo` para trocar de modelo e `sair` (ou `Ctrl+C`) para encerrar.
 
 ### Testes
 
-_A preencher._
+```bash
+pytest -q
+```
+
+Os testes usam um mini-corpus fixo (`tests/conftest.py`) e não dependem de internet nem do
+dataset.
 
 ### Benchmark de latência
 
