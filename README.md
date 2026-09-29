@@ -103,13 +103,34 @@ pytest -q
 Os testes usam um mini-corpus fixo (`tests/conftest.py`) e não dependem de internet nem do
 dataset.
 
-### Benchmark de latência
+### Benchmark de latência e relevância
 
-_A preencher na etapa 6._
+```bash
+python -m benchmark.benchmark_latencia      # gera latencia.csv (leva alguns minutos)
+python -m benchmark.graficos_latencia       # gera os 2 PNGs a partir do CSV
+python -m benchmark.avaliacao_relevancia    # gera relevancia.csv
+```
+
+As saídas ficam em `benchmark/resultados/`. Metodologia da latência:
+
+- **N = 100, 500, 1.000 e 1.673.** O último é o **tamanho real do corpus**: não há como medir
+  acima disso sem inventar documentos. Os outros três cobrem uma ordem de grandeza abaixo dele,
+  o suficiente para ver a forma da curva. Os subconjuntos são aninhados (100 ⊂ 500 ⊂ 1.000 ⊂
+  1.673), sorteados uma vez com semente 42.
+- **50 consultas** sorteadas das 373 (semente 42), as mesmas para todo N e todo modelo.
+- **Indexação:** mediana de 3 indexações, com um modelo novo a cada vez.
+- **Consulta:** 3 consultas de aquecimento; depois cada uma das 50 roda 3 vezes com
+  `time.perf_counter()` (150 medições por modelo e N).
+
+Os valores absolutos dependem da máquina. O que importa é como cada modelo cresce com N.
 
 ### Notebooks
 
-_A preencher na etapa 7._
+`notebooks/02_analise_relevancia.ipynb` compara Vetorial, BM25 e LSA lado a lado em cinco
+consultas desafiadoras (termo frequente, termo raro, sinônimo, polissemia e termo fora do
+vocabulário) e mostra as métricas. Ele já está salvo com as saídas executadas. Para rodar de
+novo, abra no VS Code (ou no Jupyter) e escolha o kernel do `.venv` do projeto; o `ipykernel`
+já está no `requirements.txt`. O notebook muda sozinho para a raiz do projeto.
 
 ## Resultados
 
