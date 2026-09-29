@@ -28,18 +28,88 @@ automaticamente. As duas pastas estão no `.gitignore`.
 
 ## Instalação
 
-Requer Python 3.13 (versão usada no desenvolvimento). A partir da raiz do projeto:
+### Pré-requisitos
+
+- **Python 3.13** (versão usada no desenvolvimento).
+- **Git**, para clonar o repositório.
+- **Internet na primeira execução**, para baixar o dataset do HuggingFace e as stopwords em
+  português do nltk. Depois disso tudo funciona offline.
+
+### Passo a passo
+
+Todos os comandos abaixo são executados **na raiz do projeto**.
+
+**1. Clonar o repositório**
+
+```bash
+git clone https://github.com/Ccesconetto01/t1_pln_ri.git
+cd t1_pln_ri
+```
+
+**2. Criar um ambiente virtual isolado** (evita conflito com outras bibliotecas da máquina)
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate          # Windows
+```
+
+**3. Ativar o ambiente virtual**
+
+```bash
+.venv\Scripts\activate          # Windows (PowerShell ou cmd)
 # source .venv/bin/activate     # Linux/macOS
+```
+
+Com o ambiente ativo, o terminal mostra `(.venv)` no início da linha. **Repita este passo a
+cada novo terminal**: é ele que faz o comando `python` usar as bibliotecas do projeto.
+
+**4. Instalar as dependências**
+
+```bash
 pip install -r requirements.txt
 ```
 
-Na primeira execução é preciso ter internet, para baixar o dataset do HuggingFace e as
-stopwords em português do nltk. Sem internet, o pré-processamento usa uma lista de stopwords
-de reserva (`STOP_WORDS_FALLBACK`).
+Isso instala, com as versões fixadas, `numpy`, `pandas`, `scikit-learn`, `rank-bm25`, `nltk`,
+`matplotlib`, `datasets` (traz o `huggingface_hub`, usado no download), `pyarrow`, `pytest`,
+`flake8` e `ipykernel`.
+
+**5. Conferir a instalação**
+
+```bash
+pytest -q
+```
+
+Todos os testes devem passar. Eles usam um mini-corpus fixo e não precisam de internet nem do
+dataset.
+
+### Dados e stopwords
+
+Não é preciso baixar nada à mão. Na primeira execução da demo, do benchmark ou do notebook,
+o projeto baixa sozinho o dataset (para `data/raw/`) e as stopwords do nltk. Sem internet, o
+pré-processamento usa uma lista de stopwords de reserva (`STOP_WORDS_FALLBACK`), mas o dataset
+continua sendo necessário na primeira vez.
+
+### Notebook (Jupyter / VS Code)
+
+O `ipykernel` já vem no `requirements.txt`. Ao abrir `notebooks/02_analise_relevancia.ipynb`,
+escolha como kernel o Python do ambiente `.venv` (no VS Code: *Select Kernel → Python
+Environments → `.venv`*). Em outra máquina, crie e ative o `.venv` e instale as dependências
+antes de abrir o notebook. Para registrar o ambiente no Jupyter:
+
+```bash
+python -m ipykernel install --user --name t1_pln_ri
+```
+
+### Problemas comuns
+
+| Erro | Causa provável | Solução |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'nltk'` (ou `sklearn`, `pandas`, ...) | O `python` usado não é o do `.venv` | Ativar o `.venv` (passo 3) e rodar `pip install -r requirements.txt` (passo 4) |
+| `.venv\Scripts\activate` bloqueado no PowerShell ("execução de scripts desabilitada") | Política de execução do Windows | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` e ativar de novo |
+| Erro ao baixar o dataset | Sem internet na primeira execução | Conectar-se à internet e rodar de novo |
+| `pytest` ou `python` não encontrados | Ambiente não ativado | Ativar o `.venv` (passo 3) |
+
+Para saber qual Python está em uso: `python -c "import sys; print(sys.executable)"` deve
+apontar para dentro da pasta `.venv` do projeto.
 
 ## Arquitetura
 
