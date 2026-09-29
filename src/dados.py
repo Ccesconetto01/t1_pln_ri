@@ -92,6 +92,39 @@ def montar_documentos(df_corpus: pd.DataFrame) -> dict[str, str]:
     }
 
 
+def montar_consultas(df_queries: pd.DataFrame) -> dict[str, str]:
+    """Converte as queries em um dicionário ``_id`` -> texto da consulta.
+
+    Args:
+        df_queries: DataFrame com as colunas ``_id`` e ``text``.
+
+    Returns:
+        Dicionário na ordem das queries.
+    """
+    return {str(_id): str(texto) for _id, texto in zip(df_queries["_id"], df_queries["text"])}
+
+
+def montar_qrels(df_qrels: pd.DataFrame) -> dict[str, set[str]]:
+    """Agrupa os julgamentos de relevância por consulta.
+
+    Um documento é relevante quando seu ``score`` nos qrels é maior que zero.
+
+    Args:
+        df_qrels: DataFrame com as colunas ``query-id``, ``corpus-id`` e ``score``.
+
+    Returns:
+        Dicionário ``query-id`` -> conjunto de ``corpus-id`` relevantes. Consultas sem
+        nenhum documento relevante não aparecem.
+    """
+    qrels: dict[str, set[str]] = {}
+    for query_id, corpus_id, score in zip(
+        df_qrels["query-id"], df_qrels["corpus-id"], df_qrels["score"]
+    ):
+        if score > 0:
+            qrels.setdefault(str(query_id), set()).add(str(corpus_id))
+    return qrels
+
+
 def gerar_titulo(texto: str, limite: int = TAMANHO_TITULO) -> str:
     """Gera um título curto para exibição a partir do início do texto.
 
