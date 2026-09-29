@@ -13,15 +13,66 @@ FAQ público do Banco Central do Brasil (domínio de finanças e regulação ban
 
 ## Dataset
 
-_A preencher na etapa 1._
+[`MTEB-BR/faq-bacen`](https://huggingface.co/datasets/MTEB-BR/faq-bacen) no HuggingFace,
+licença **Apache-2.0**: perguntas e respostas do FAQ público do Banco Central do Brasil.
+
+| Conjunto | Tamanho | Observação |
+|---|---:|---|
+| `corpus` | 1.673 documentos | as respostas do FAQ; `title` vazio em todos, só `text` é usado |
+| `queries` | 373 perguntas | usadas na avaliação de relevância e no benchmark |
+| `qrels` | 373 pares | todos com `score = 1`: **exatamente 1 documento relevante por pergunta** |
+
+O download é feito por `src/dados.py` na primeira execução e fica em cache em `data/raw/`
+(parquets). A Busca Linear lê os documentos de `data/processed/documentos/<_id>.txt`, gerados
+automaticamente. As duas pastas estão no `.gitignore`.
 
 ## Instalação
 
-_A preencher._
+Requer Python 3.13 (versão usada no desenvolvimento). A partir da raiz do projeto:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/macOS
+pip install -r requirements.txt
+```
+
+Na primeira execução é preciso ter internet, para baixar o dataset do HuggingFace e as
+stopwords em português do nltk. Sem internet, o pré-processamento usa uma lista de stopwords
+de reserva (`STOP_WORDS_FALLBACK`).
 
 ## Arquitetura
 
-_A preencher._
+```text
+src/
+├── preprocessamento.py  # tokenizar_e_filtrar: minúsculas, sem acentos, sem stopwords/números
+├── dados.py             # download, cache, montagem de documentos/consultas/qrels, amostragem
+├── busca_linear.py      # Busca Linear: relê e tokeniza cada .txt do disco a cada consulta
+├── modelo_booleano.py   # Booleano: matriz de incidência (numpy bool) + AND/OR/NOT bitwise
+├── modelo_vetorial.py   # Vetorial: TfidfVectorizer (TF sublinear) + cosseno
+├── modelo_bm25.py       # BM25: rank_bm25.BM25Okapi, k1 = 1,5 e b = 0,75 por padrão
+├── modelo_lsa.py        # LSA: TruncatedSVD (até 100 componentes) sobre a matriz TF-IDF
+├── buscador.py          # interface comum (Protocol ModeloBusca) e fábrica dos 5 modelos
+└── avaliacao.py         # MRR@k e Recall@k sobre os qrels
+benchmark/               # scripts de latência, gráficos e relevância; saídas em resultados/
+notebooks/               # análise de relevância com as consultas desafiadoras
+tests/                   # pytest com mini-corpus fixo (conftest.py), sem internet
+demo.py                  # demo interativa no terminal
+```
+
+Os cinco modelos seguem a mesma interface, definida pelo Protocol `ModeloBusca` em
+`src/buscador.py`:
+
+```python
+modelo.indexar(documentos)            # documentos: dict[_id, texto]
+modelo.buscar(consulta, k) -> list[tuple[_id, score]]   # ordem decrescente de score
+```
+
+A demo, o benchmark e o notebook criam os modelos apenas por `criar_modelo(nome)` e
+`indexar_todos(documentos)`, sem importar as classes diretamente. Todos usam o mesmo
+`tokenizar_e_filtrar`, então as diferenças de resultado vêm só do modelo, e não do
+pré-processamento. Busca Linear e Booleano não ranqueiam: devolvem score fixo 1,0 na ordem
+do corpus.
 
 ## Como executar
 
