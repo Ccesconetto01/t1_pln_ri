@@ -8,17 +8,28 @@ OPERADORES = ("AND", "OR", "NOT")
 
 
 class ModeloBooleano:
-    """Recuperação booleana sobre uma matriz de incidência ``termo -> vetor de bool``."""
+    """Recuperação booleana sobre uma matriz de incidência ``termo -> vetor de bool``.
+
+    Cada termo do vocabulário guarda um vetor booleano de ``N`` posições (uma por
+    documento). As consultas são resolvidas com ``&``, ``|`` e ``~`` do numpy sobre esses
+    vetores.
+
+    Attributes:
+        ids: Ids dos documentos; a posição ``i`` dos vetores corresponde a ``ids[i]``.
+        matriz_incidencia: Dicionário termo -> vetor booleano de presença nos documentos.
+    """
 
     def __init__(self) -> None:
         """Inicializa o modelo sem índice."""
-
         self.ids: list[str] = []
         self.matriz_incidencia: dict[str, np.ndarray] = {}
 
     def indexar(self, documentos: dict[str, str]) -> None:
-        """Constrói a matriz de incidência: um vetor booleano de N posições por termo."""
+        """Constrói a matriz de incidência: um vetor booleano de N posições por termo.
 
+        Args:
+            documentos: Dicionário ``_id`` -> texto do documento.
+        """
         self.ids = list(documentos)
         n_documentos = len(self.ids)
         self.matriz_incidencia = {}
@@ -30,8 +41,16 @@ class ModeloBooleano:
                 vetor[posicao] = True
 
     def _vetor_do_termo(self, palavra: str) -> np.ndarray | None:
-        """Retorna o vetor de uma palavra da consulta (AND se ela gerar vários tokens)."""
+        """Retorna o vetor de uma palavra da consulta (AND se ela gerar vários tokens).
 
+        Args:
+            palavra: Uma palavra da consulta, antes do pré-processamento.
+
+        Returns:
+            Vetor booleano de ``N`` posições com os documentos que contêm a palavra (todo
+            ``False`` se ela estiver fora do vocabulário), ou ``None`` se a palavra for
+            descartada no pré-processamento (stopword, número ou pontuação).
+        """
         tokens = tokenizar_e_filtrar(palavra)
         if not tokens:
             return None
@@ -43,8 +62,20 @@ class ModeloBooleano:
         return resultado
 
     def buscar(self, consulta: str, k: int = 10) -> list[tuple[str, float]]:
-        """Avalia a consulta booleana da esquerda para a direita."""
+        """Avalia a consulta booleana da esquerda para a direita.
 
+        Os operadores ``AND``, ``OR`` e ``NOT`` devem estar em maiúsculas. Entre dois termos
+        sem operador vale ``AND``. Não há precedência nem parênteses: ``a OR b AND c`` é
+        avaliado como ``(a OR b) AND c``.
+
+        Args:
+            consulta: Consulta booleana, ex.: ``"pix AND limite"`` ou ``"cheque NOT especial"``.
+            k: Quantidade máxima de resultados.
+
+        Returns:
+            Até ``k`` pares ``(_id, 1.0)`` na ordem do corpus: o modelo não ranqueia, então
+            o score é fixo. Lista vazia se a consulta não tiver nenhum termo válido.
+        """
         resultado: np.ndarray | None = None
         operador = "AND"
         negar = False
