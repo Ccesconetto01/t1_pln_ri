@@ -134,8 +134,100 @@ já está no `requirements.txt`. O notebook muda sozinho para a raiz do projeto.
 
 ## Resultados
 
-_A preencher nas etapas 6 e 7._
+Todos os números vêm de `benchmark/resultados/latencia.csv` e `relevancia.csv`, medidos no
+Windows 11 com Python 3.13. A análise completa está em
+[`docs/analise_parte2.md`](docs/analise_parte2.md), e as consultas desafiadoras estão no
+notebook.
+
+### Latência de consulta
+
+Tempo médio por consulta (ms). Entre N = 100 e N = 1.673, N cresce **16,7×**.
+
+| Modelo | N=100 | N=500 | N=1.000 | N=1.673 | Crescimento |
+|---|---:|---:|---:|---:|---:|
+| Busca Linear | 20,64 | 84,95 | 177,44 | 300,55 | 14,6× |
+| Booleano | 0,040 | 0,037 | 0,038 | 0,040 | 1,0× |
+| Vetorial | 0,68 | 0,92 | 0,95 | 1,16 | 1,7× |
+| BM25 | 0,12 | 0,46 | 0,89 | 1,78 | 14,9× |
+| LSA | 1,52 | 3,57 | 5,10 | 6,36 | 4,2× |
+
+![Tempo de consulta × N, escala linear](benchmark/resultados/escalabilidade_linear.png)
+![Tempo de consulta × N, escala logarítmica](benchmark/resultados/escalabilidade_log.png)
+
+### Latência de indexação
+
+Mediana de 3 indexações (ms):
+
+| Modelo | N=100 | N=500 | N=1.000 | N=1.673 | Crescimento |
+|---|---:|---:|---:|---:|---:|
+| Busca Linear | 0,002 | 0,002 | 0,004 | 0,006 | não indexa: só guarda os ids |
+| Booleano | 12,1 | 39,3 | 82,8 | 143,5 | 11,9× |
+| Vetorial | 16,7 | 42,0 | 84,5 | 137,6 | 8,3× |
+| BM25 | 10,8 | 39,6 | 84,3 | 129,8 | 12,0× |
+| LSA | 112,0 | 221,2 | 357,1 | 575,3 | 5,1× |
+
+### Complexidade teórica × observada (consulta)
+
+| Modelo | Teórica | Observada |
+|---|---|---|
+| Busca Linear | O(N · L): relê e tokeniza cada documento do disco | **Linear** (14,6×) e de longe a mais lenta: ~300 ms com o corpus inteiro, dominada por I/O e tokenização |
+| Booleano | O(\|q\| · N): AND bit a bit sobre vetores de N posições | **Praticamente constante**: operação vetorizada no numpy sobre ≤ 1.673 booleanos; o custo fixo do Python domina |
+| Vetorial | O(\|q\|) para vetorizar + O(nnz) no cosseno esparso | Cresce só 1,7×: o custo fixo do `transform` do scikit-learn ainda domina nesse tamanho |
+| BM25 | O(\|q\| · N): `get_scores` pontua **todos** os documentos | **Quase exatamente linear** (14,9×). Empata com o Vetorial em N = 1.000 e fica mais lento em N = 1.673 |
+| LSA | O(\|q\| · k) na projeção + O(N · k) no cosseno denso (k ≤ 100) | Cresce 4,2×: linear em N somado a um custo fixo maior (a projeção pelo SVD) |
+
+**Achado principal: ter índice não garante consulta sublinear.** BM25, Vetorial e LSA
+calculam um score para todos os N documentos a cada consulta, antes de ordenar o Top-k. O
+índice elimina a releitura e a retokenização (com N = 1.673 a Busca Linear é ~170× mais lenta
+que o BM25), mas não elimina a varredura. Para ficar sublinear seria preciso percorrer só as
+listas invertidas dos termos da consulta, ou usar poda do tipo WAND/MaxScore. Na indexação,
+Booleano, Vetorial e BM25 crescem de forma aproximadamente linear (a tokenização domina); o
+LSA é o mais caro (~4× os demais com N = 1.673) por causa do `TruncatedSVD`.
+
+### Relevância (373 consultas, corpus completo)
+
+| Modelo | MRR@10 | Recall@10 |
+|---|---:|---:|
+| **BM25** (k1 = 1,5; b = 0,75) | **0,4041** | **0,6381** |
+| Vetorial (TF-IDF + cosseno) | 0,3768 | 0,6059 |
+| BM25 (b = 0) | 0,3511 | 0,5576 |
+| LSA (100 componentes) | 0,2407 | 0,5201 |
+
+Como cada pergunta tem um único relevante, o Recall@10 é a fração de perguntas cuja resposta
+certa aparece no Top-10.
+
+- **BM25 é o melhor** nas duas métricas: acerta no Top-10 em 63,8% das perguntas.
+- **Efeito de `b`:** sem normalização por comprimento (`b = 0`), o MRR@10 cai de 0,404 para
+  0,351 e o Recall@10 de 63,8% para 55,8%, abaixo até do Vetorial.
+- **LSA é o pior.** Nas consultas desafiadoras ele perde termos raros e específicos: em
+  "atendimento prioritário para idosos e gestantes" não traz o único documento com "idosos" e
+  "gestantes", que Vetorial e BM25 põem em 1º.
+- **Booleano e Busca Linear ficam fora das métricas** porque não ranqueiam e exigem todos os
+  termos. Com perguntas em linguagem natural, o Booleano só retorna algo em 56 das 373 (15%).
+
+Resumo das consultas desafiadoras (Top-5 completo no notebook):
+
+| Tipo | Consulta | O que aconteceu |
+|---|---|---|
+| Termo frequente | "o banco pode cobrar" | Vetorial e BM25: mesmo Top-5, guiado por "cobrar" (26 docs). LSA traz cheque cruzado |
+| Termo raro | "atendimento prioritário para idosos e gestantes" | Vetorial e BM25 acertam em 1º; o LSA não traz o documento |
+| Sinônimo | "empréstimo para comprar casa" | Nenhum acerta. Os lexicais trazem "Casa da Moeda"; o LSA traz consignado |
+| Polissemia | "como pagar a conta de luz" | Só o Vetorial põe a resposta em 1º; o BM25 a põe em 3º; o LSA fica em "conta bancária" |
+| Fora do vocabulário | "bitcoin é regulado pelo banco central?" | Nenhum acerta: "bitcoin" não existe no corpus ("criptoativos"/"moedas virtuais") |
 
 ## Limitações
 
-_A preencher na etapa 8._
+- **N máximo = 1.673**, o corpus inteiro. Em N maiores os custos fixos (Booleano, Vetorial)
+  devem perder peso para a parte linear, mas isso não foi medido.
+- **Uma única máquina** e uma única execução do benchmark. Os valores absolutos mudam com o
+  hardware; o desvio padrão está no CSV.
+- **Um relevante por consulta** nos qrels. Um documento igualmente útil, mas não anotado,
+  conta como erro, o que tende a subestimar todos os modelos.
+- **Busca Linear e Booleano não ranqueiam** (score fixo, ordem do corpus), então não entram
+  em MRR@10 e Recall@10.
+- **Sem tratamento de sinônimos nem de termos fora do vocabulário.** Os modelos lexicais só
+  casam palavras idênticas (após remover acentos), e o LSA só relaciona termos que já
+  aparecem no corpus. Não há stemming, então variações como "cobrar"/"cobrança" também não
+  se casam.
+- **Consulta O(N) em BM25, Vetorial e LSA**, pelas bibliotecas usadas (sem percorrer listas
+  invertidas nem usar poda WAND/MaxScore).
