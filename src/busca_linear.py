@@ -21,7 +21,7 @@ class BuscaLinear:
 
     def buscar(self, consulta: str, k: int = 10) -> list[tuple[str, float]]:
         """Retorna os documentos que contêm todos os termos da consulta."""
-        
+
         q_tokens = set(tokenizar_e_filtrar(consulta))
         if not q_tokens:
             return []
