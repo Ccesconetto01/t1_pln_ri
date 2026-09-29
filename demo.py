@@ -87,14 +87,27 @@ def formatar_trecho(texto: str, limite: int = TAMANHO_TRECHO) -> str:
     return limpo[:limite].rstrip() + "..."
 
 
+def formatar_total(total: int) -> str:
+    """Formata uma quantidade com ponto como separador de milhar (ex.: 1.673).
+
+    Args:
+        total: Quantidade de documentos.
+
+    Returns:
+        Número formatado no padrão brasileiro.
+    """
+    return f"{total:,}".replace(",", ".")
+
+
 def exibir_resultados(
     nome: str, resultados: list[tuple[str, float]], documentos: dict[str, str]
 ) -> None:
-    """Imprime o Top-K de um modelo com posição, título, score e trecho.
+    """Imprime o Top-K de um modelo e, embaixo, o total de documentos encontrados.
 
     Args:
         nome: Nome do modelo.
-        resultados: Pares ``(_id, score)`` retornados pelo modelo.
+        resultados: **Todos** os pares ``(_id, score)`` do modelo, em ordem decrescente de
+            score. Só os ``TOP_K`` primeiros são exibidos; o total conta a lista inteira.
         documentos: Corpus (``_id`` -> texto), usado para título e trecho.
     """
     print(f"\n=== {nome} ===")
@@ -102,11 +115,11 @@ def exibir_resultados(
         print("  Nenhum documento encontrado.")
         if nome in MODELOS_SEM_RANKING:
             print("  (este modelo exige todos os termos; tente menos palavras)")
-        return
-    for posicao, (_id, score) in enumerate(resultados, start=1):
+    for posicao, (_id, score) in enumerate(resultados[:TOP_K], start=1):
         texto = documentos[_id]
         print(f"  {posicao}. [{_id}] {gerar_titulo(texto)}  (score {score:.4f})")
         print(f"     {formatar_trecho(texto)}")
+    print(f"  Total de documentos encontrados: {formatar_total(len(resultados))}")
 
 
 def executar_busca(
@@ -117,19 +130,29 @@ def executar_busca(
 ) -> None:
     """Roda a consulta nos modelos escolhidos, isolando falhas de cada modelo.
 
+    Cada modelo mostra o seu Top-5 e o seu total. Quando mais de um modelo responde, no
+    final aparece o total geral: quantos documentos distintos foram encontrados por pelo
+    menos um deles (um mesmo documento achado por vários modelos conta uma só vez).
+
     Args:
         modelos: Modelos já indexados.
         escolhidos: Nomes dos modelos que devem responder.
         consulta: Texto digitado pelo usuário.
         documentos: Corpus, usado para exibir os resultados.
     """
+    encontrados: set[str] = set()
     for nome in escolhidos:
         try:
-            resultados = modelos[nome].buscar(consulta, k=TOP_K)
+            # Pede todos os resultados (não só o Top-5) para poder contar o total.
+            resultados = modelos[nome].buscar(consulta, k=len(documentos))
             exibir_resultados(nome, resultados, documentos)
+            encontrados.update(_id for _id, _ in resultados)
         except Exception as erro:  # a demo não pode cair por causa de uma busca
             print(f"\n=== {nome} ===")
             print(f"  Não foi possível buscar neste modelo ({type(erro).__name__}: {erro}).")
+    if len(escolhidos) > 1:
+        print("\n=== Total geral ===")
+        print(f"  Documentos distintos encontrados: {formatar_total(len(encontrados))}")
 
 
 def laco_de_consultas(
